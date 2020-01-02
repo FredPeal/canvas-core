@@ -12,6 +12,7 @@ use Canvas\Models\Subscription;
 use Canvas\Models\CompaniesSettings;
 use Canvas\Template;
 use Phalcon\Di;
+use GuzzleHttp\Client;
 
 /**
  * Class PaymentsController.
@@ -258,5 +259,70 @@ class PaymentsController extends BaseController
         } else {
             $this->log->error("Subscription not found\n");
         }
+    }
+
+    /**
+     * Apple Payments handler.
+     *
+     * @return Response
+     */
+    public function handleApplePayments(): Response
+    {
+        $request = $this->request->getPostData();
+        $user = $this->userData;
+        $subscription = Subscription::getByDefaultCompany($user);
+
+        if ($subscription) {
+
+            $requestValidation = $this->verifyAppleReceipt($request['transactionReceipt']);
+
+            // If status 0 then receipt is valid.
+            // We could consider then that the subscriptions has been paid.
+            // Any other status could be considered as errors in subscription payment
+            $subscription->paid = ($requestValidation['status'] == 0) ? 1 : 0;
+
+            if ($requestValidation['status'] == 0) {
+                $subscription->is_freetrial = 0;
+                $subscription->trial_ends_days = 0;
+            }
+
+            if ($subscription->update()) {
+                //Update companies setting
+                $paidSetting = CompaniesSettings::findFirst([
+                    'conditions' => "companies_id = ?0 and name = 'paid' and is_deleted = 0",
+                    'bind' => [$user->getDefaultCompany()->getId()]
+                ]);
+
+                $paidSetting->value = (string) $subscription->paid;
+                $paidSetting->update();
+            }
+
+            return $this->response($requestValidation);
+
+        } else {
+            return $this->response("Subscription not found\n");
+        }
+    }
+
+    /**
+     * Verify if the Apple Store Receipt is valid.
+     * @param string $transactionReceipt
+     * @return array
+     */
+    private function verifyAppleReceipt(string $transactionReceipt): array
+    {
+        $client = new Client();
+        //Create a new Guzzle Client
+        $response = $client->post(
+            'https://sandbox.itunes.apple.com/verifyReceipt',
+            [
+                'headers' => ['Content-Type' => 'application/json'],
+                'json' => ['receipt-data' => $transactionReceipt, 'password' => 'f899c5c6534046c2879e8c0e5e373ceb'],
+                'verify' => false
+            ]
+        );
+        $responseBody = json_decode($response->getBody()->getContents(), true);
+
+        return $responseBody;
     }
 }
