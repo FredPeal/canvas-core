@@ -273,7 +273,6 @@ class PaymentsController extends BaseController
         $subscription = Subscription::getByDefaultCompany($user);
 
         if ($subscription) {
-
             $requestValidation = $this->verifyAppleReceipt($request['transactionReceipt']);
 
             // If status 0 then receipt is valid.
@@ -298,7 +297,6 @@ class PaymentsController extends BaseController
             }
 
             return $this->response($requestValidation);
-
         } else {
             return $this->response("Subscription not found\n");
         }
@@ -317,7 +315,7 @@ class PaymentsController extends BaseController
             'https://sandbox.itunes.apple.com/verifyReceipt',
             [
                 'headers' => ['Content-Type' => 'application/json'],
-                'json' => ['receipt-data' => $transactionReceipt, 'password' => 'f899c5c6534046c2879e8c0e5e373ceb'],
+                'json' => ['receipt-data' => $transactionReceipt, 'password' => getenv('APPLE_APP_SHARED_SECRET')],
                 'verify' => false
             ]
         );
