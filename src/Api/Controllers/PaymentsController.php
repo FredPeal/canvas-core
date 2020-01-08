@@ -312,7 +312,7 @@ class PaymentsController extends BaseController
         $client = new Client();
         //Create a new Guzzle Client
         $response = $client->post(
-            'https://sandbox.itunes.apple.com/verifyReceipt',
+            getenv('APPLE_PAY_RECEIPT_URL'),
             [
                 'headers' => ['Content-Type' => 'application/json'],
                 'json' => ['receipt-data' => $transactionReceipt, 'password' => getenv('APPLE_APP_SHARED_SECRET')],
